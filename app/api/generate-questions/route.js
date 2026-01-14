@@ -11,7 +11,7 @@ const CATEGORY_PROMPTS = {
 
 export async function POST(request) {
   try {
-    const { category } = await request.json()
+    const { category, previousQuestions = [] } = await request.json()
 
     const apiKey = process.env.ANTHROPIC_API_KEY
     
@@ -23,6 +23,12 @@ export async function POST(request) {
     }
 
     const categoryContext = CATEGORY_PROMPTS[category] || category
+    
+    // Build the avoidance list - only use last 20 to keep prompt manageable
+    const recentQuestions = previousQuestions.slice(-20)
+    const avoidanceText = recentQuestions.length > 0 
+      ? `\n\nIMPORTANT: Do NOT ask about any of these topics that were already asked:\n${recentQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}\n\nGenerate a COMPLETELY DIFFERENT question about a different movie, person, or topic.`
+      : ''
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -42,7 +48,9 @@ Requirements:
 - Question should be interesting and fun
 - Vary difficulty (some easy, some medium, some challenging)
 - Must be factually accurate
+- Cover a WIDE variety of movies, actors, directors from different decades (1950s to 2020s)
 - Include a visual hint keyword that represents the question (like "oscar_statue", "microphone", "movie_camera", "heart", "money_bag", "film_reel", "star", "popcorn", "trophy", "musical_note", "director_chair", "red_carpet", "clapperboard", "spotlight", "ticket")
+${avoidanceText}
 
 Return ONLY valid JSON in this exact format, no other text:
 {

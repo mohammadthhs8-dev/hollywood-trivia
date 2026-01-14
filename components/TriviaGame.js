@@ -168,19 +168,24 @@ export default function TriviaGame({ onScoreSubmit, leaderboard }) {
   const [soundEnabled, setSoundEnabled] = useState(true)
   const [funFact, setFunFact] = useState(null)
   const [questionHint, setQuestionHint] = useState('star')
+  const [askedQuestions, setAskedQuestions] = useState([]) // Track questions to avoid repeats
   
   const playSound = useSound()
   const sound = useCallback((type) => { if (soundEnabled) playSound(type) }, [soundEnabled, playSound])
 
-  const fetchQuestion = async (category) => {
+  const fetchQuestion = async (category, previousQuestions = []) => {
     try {
       const response = await fetch('/api/generate-questions', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ category })
+        body: JSON.stringify({ category, previousQuestions })
       })
       if (!response.ok) throw new Error('Failed to fetch question')
       const data = await response.json()
-      if (data.success && data.question) return data.question
+      if (data.success && data.question) {
+        // Track this question to avoid repeats
+        setAskedQuestions(prev => [...prev, data.question.q])
+        return data.question
+      }
       throw new Error(data.error || 'Failed to generate question')
     } catch (error) {
       console.error('Error fetching question:', error)
@@ -205,7 +210,7 @@ export default function TriviaGame({ onScoreSubmit, leaderboard }) {
     setLockedCategory(null)
     setGameState('loading')
     sound('loading')
-    const question = await fetchQuestion(randomCategory)
+    const question = await fetchQuestion(randomCategory, askedQuestions)
     setCurrentQuestion(question)
     setShuffledOptions(shuffleArray(question.options))
     setQuestionHint(question.hint || 'star')
@@ -227,7 +232,7 @@ export default function TriviaGame({ onScoreSubmit, leaderboard }) {
     setLockedCategory(category)
     setGameState('loading')
     sound('loading')
-    const question = await fetchQuestion(category)
+    const question = await fetchQuestion(category, askedQuestions)
     setCurrentQuestion(question)
     setShuffledOptions(shuffleArray(question.options))
     setQuestionHint(question.hint || 'star')
@@ -278,7 +283,7 @@ export default function TriviaGame({ onScoreSubmit, leaderboard }) {
       setCurrentCategory(randomCategory)
       setGameState('loading')
       sound('loading')
-      const question = await fetchQuestion(randomCategory)
+      const question = await fetchQuestion(randomCategory, askedQuestions)
       setCurrentQuestion(question)
       setShuffledOptions(shuffleArray(question.options))
       setQuestionHint(question.hint || 'star')
@@ -288,7 +293,7 @@ export default function TriviaGame({ onScoreSubmit, leaderboard }) {
       // Category mode: stay in the same category
       setGameState('loading')
       sound('loading')
-      const question = await fetchQuestion(lockedCategory)
+      const question = await fetchQuestion(lockedCategory, askedQuestions)
       setCurrentQuestion(question)
       setShuffledOptions(shuffleArray(question.options))
       setQuestionHint(question.hint || 'star')
@@ -296,7 +301,7 @@ export default function TriviaGame({ onScoreSubmit, leaderboard }) {
       setGameState('playing')
     }
   }
-  const resetGame = () => { sound('click'); setGameState('start'); setGameMode(null); setLockedCategory(null); setScore(0); setTotalAnswered(0); setStreak(0); setBestStreak(0); setCurrentCategory(null); setCurrentQuestion(null); setShowNameInput(false); setPlayerName('') }
+  const resetGame = () => { sound('click'); setGameState('start'); setGameMode(null); setLockedCategory(null); setScore(0); setTotalAnswered(0); setStreak(0); setBestStreak(0); setCurrentCategory(null); setCurrentQuestion(null); setShowNameInput(false); setPlayerName(''); setAskedQuestions([]) }
   const finishGame = () => { sound('gameOver'); setShowConfetti(true); setTimeout(() => setShowConfetti(false), 3000); setShowNameInput(true) }
 
   const submitScore = async () => {
