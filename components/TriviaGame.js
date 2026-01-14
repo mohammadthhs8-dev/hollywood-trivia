@@ -150,7 +150,9 @@ const AnimationStyles = () => (
 
 export default function TriviaGame({ onScoreSubmit, leaderboard }) {
   const [gameState, setGameState] = useState('start')
+  const [gameMode, setGameMode] = useState(null) // 'random' or 'category'
   const [currentCategory, setCurrentCategory] = useState(null)
+  const [lockedCategory, setLockedCategory] = useState(null) // For category mode - stays in same category
   const [currentQuestion, setCurrentQuestion] = useState(null)
   const [score, setScore] = useState(0)
   const [totalAnswered, setTotalAnswered] = useState(0)
@@ -190,9 +192,39 @@ export default function TriviaGame({ onScoreSubmit, leaderboard }) {
     }
   }
 
+  const getRandomCategory = () => {
+    const randomIndex = Math.floor(Math.random() * categories.length)
+    return categories[randomIndex]
+  }
+
+  const startRandomMode = async () => {
+    sound('select')
+    setGameMode('random')
+    const randomCategory = getRandomCategory()
+    setCurrentCategory(randomCategory)
+    setLockedCategory(null)
+    setGameState('loading')
+    sound('loading')
+    const question = await fetchQuestion(randomCategory)
+    setCurrentQuestion(question)
+    setShuffledOptions(shuffleArray(question.options))
+    setQuestionHint(question.hint || 'star')
+    setFunFact(question.funFact || null)
+    setGameState('playing')
+    setSelectedAnswer(null)
+    setShowResult(false)
+  }
+
+  const startCategoryMode = () => {
+    sound('select')
+    setGameMode('category')
+    setGameState('categories')
+  }
+
   const selectCategory = async (category) => {
     sound('select')
     setCurrentCategory(category)
+    setLockedCategory(category)
     setGameState('loading')
     sound('loading')
     const question = await fetchQuestion(category)
@@ -203,6 +235,11 @@ export default function TriviaGame({ onScoreSubmit, leaderboard }) {
     setGameState('playing')
     setSelectedAnswer(null)
     setShowResult(false)
+  }
+
+  const changeCategory = () => {
+    sound('click')
+    setGameState('categories')
   }
 
   const handleAnswer = (answer) => {
@@ -228,8 +265,38 @@ export default function TriviaGame({ onScoreSubmit, leaderboard }) {
     }
   }
 
-  const nextQuestion = () => { sound('click'); setGameState('categories'); setSelectedAnswer(null); setShowResult(false); setCurrentQuestion(null); setFunFact(null) }
-  const resetGame = () => { sound('click'); setGameState('start'); setScore(0); setTotalAnswered(0); setStreak(0); setBestStreak(0); setCurrentCategory(null); setCurrentQuestion(null); setShowNameInput(false); setPlayerName('') }
+  const nextQuestion = async () => {
+    sound('click')
+    setSelectedAnswer(null)
+    setShowResult(false)
+    setCurrentQuestion(null)
+    setFunFact(null)
+    
+    if (gameMode === 'random') {
+      // Random mode: pick a new random category
+      const randomCategory = getRandomCategory()
+      setCurrentCategory(randomCategory)
+      setGameState('loading')
+      sound('loading')
+      const question = await fetchQuestion(randomCategory)
+      setCurrentQuestion(question)
+      setShuffledOptions(shuffleArray(question.options))
+      setQuestionHint(question.hint || 'star')
+      setFunFact(question.funFact || null)
+      setGameState('playing')
+    } else {
+      // Category mode: stay in the same category
+      setGameState('loading')
+      sound('loading')
+      const question = await fetchQuestion(lockedCategory)
+      setCurrentQuestion(question)
+      setShuffledOptions(shuffleArray(question.options))
+      setQuestionHint(question.hint || 'star')
+      setFunFact(question.funFact || null)
+      setGameState('playing')
+    }
+  }
+  const resetGame = () => { sound('click'); setGameState('start'); setGameMode(null); setLockedCategory(null); setScore(0); setTotalAnswered(0); setStreak(0); setBestStreak(0); setCurrentCategory(null); setCurrentQuestion(null); setShowNameInput(false); setPlayerName('') }
   const finishGame = () => { sound('gameOver'); setShowConfetti(true); setTimeout(() => setShowConfetti(false), 3000); setShowNameInput(true) }
 
   const submitScore = async () => {
@@ -266,10 +333,15 @@ export default function TriviaGame({ onScoreSubmit, leaderboard }) {
             🎬 Hollywood Trivia 🌟
           </h1>
           {gameState !== 'start' && gameState !== 'results' && gameState !== 'loading' && (
-            <div className="flex justify-center gap-4 sm:gap-6 mt-4 text-sm animate-slideUp">
-              <div className="bg-white/10 px-4 py-2 rounded-full backdrop-blur">Score: <span className="font-bold text-yellow-400">{score}/{totalAnswered}</span></div>
-              <div className="bg-white/10 px-4 py-2 rounded-full backdrop-blur">🔥 Streak: <span className={`font-bold ${streak >= 3 ? 'text-orange-400 animate-pulse' : 'text-orange-400'}`}>{streak}</span></div>
-              {bestStreak > 0 && <div className="bg-white/10 px-4 py-2 rounded-full backdrop-blur hidden sm:block">Best: <span className="font-bold text-green-400">{bestStreak}</span></div>}
+            <div className="flex flex-col items-center gap-2 mt-4 animate-slideUp">
+              <div className="flex justify-center gap-4 sm:gap-6 text-sm">
+                <div className="bg-white/10 px-4 py-2 rounded-full backdrop-blur">Score: <span className="font-bold text-yellow-400">{score}/{totalAnswered}</span></div>
+                <div className="bg-white/10 px-4 py-2 rounded-full backdrop-blur">🔥 Streak: <span className={`font-bold ${streak >= 3 ? 'text-orange-400 animate-pulse' : 'text-orange-400'}`}>{streak}</span></div>
+                {bestStreak > 0 && <div className="bg-white/10 px-4 py-2 rounded-full backdrop-blur hidden sm:block">Best: <span className="font-bold text-green-400">{bestStreak}</span></div>}
+              </div>
+              <div className="text-xs text-gray-400">
+                {gameMode === 'random' ? '🎲 Random Mode' : `🎯 ${lockedCategory || 'Category Mode'}`}
+              </div>
             </div>
           )}
         </div>
@@ -289,10 +361,13 @@ export default function TriviaGame({ onScoreSubmit, leaderboard }) {
                 ))}
               </div>
               <div className="space-y-4">
-                <button onClick={() => { sound('select'); setGameState('categories') }} className="bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white font-bold py-4 px-12 rounded-full text-xl transition-all transform hover:scale-105 shadow-lg hover:shadow-pink-500/25 animate-pulse-border">
-                  Start Playing! 🎮
+                <button onClick={startRandomMode} className="w-full sm:w-auto bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white font-bold py-4 px-12 rounded-full text-xl transition-all transform hover:scale-105 shadow-lg hover:shadow-pink-500/25 animate-pulse-border">
+                  🎲 Start (Random)
                 </button>
-                {leaderboard?.length > 0 && <button onClick={() => { sound('click'); setShowLeaderboard(true) }} className="block mx-auto text-gray-400 hover:text-white transition-colors">🏆 View Leaderboard</button>}
+                <button onClick={startCategoryMode} className="w-full sm:w-auto bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white font-bold py-4 px-12 rounded-full text-xl transition-all transform hover:scale-105 shadow-lg hover:shadow-cyan-500/25 sm:ml-4">
+                  🎯 Choose Category
+                </button>
+                {leaderboard?.length > 0 && <button onClick={() => { sound('click'); setShowLeaderboard(true) }} className="block mx-auto text-gray-400 hover:text-white transition-colors mt-4">🏆 View Leaderboard</button>}
               </div>
             </div>
           </div>
@@ -301,19 +376,23 @@ export default function TriviaGame({ onScoreSubmit, leaderboard }) {
         {/* Category Selection */}
         {gameState === 'categories' && (
           <div className="space-y-4 animate-slideUp">
-            <h2 className="text-2xl font-bold text-center mb-6">Choose a Category</h2>
+            <h2 className="text-2xl font-bold text-center mb-2">Choose a Category</h2>
+            {totalAnswered > 0 && (
+              <p className="text-center text-gray-400 text-sm mb-4">Your score will be kept when switching categories</p>
+            )}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {categories.map((category, index) => (
-                <button key={category} onClick={() => selectCategory(category)} className={`bg-gradient-to-r ${categoryColors[category]} p-6 rounded-xl text-left transition-all transform hover:scale-105 hover:shadow-lg animate-pop`} style={{ animationDelay: `${index * 0.1}s` }}>
+                <button key={category} onClick={() => selectCategory(category)} className={`bg-gradient-to-r ${categoryColors[category]} p-6 rounded-xl text-left transition-all transform hover:scale-105 hover:shadow-lg animate-pop ${lockedCategory === category ? 'ring-4 ring-white/50' : ''}`} style={{ animationDelay: `${index * 0.1}s` }}>
                   <span className="text-3xl animate-float inline-block">{categoryEmojis[category]}</span>
                   <h3 className="text-xl font-bold mt-2">{category}</h3>
                   <p className="text-sm opacity-80 mt-1">✨ AI-generated questions</p>
+                  {lockedCategory === category && <span className="text-xs bg-white/20 px-2 py-1 rounded-full mt-2 inline-block">Current</span>}
                 </button>
               ))}
             </div>
             <div className="text-center mt-8 space-x-4">
               {totalAnswered > 0 && <button onClick={finishGame} className="text-green-400 hover:text-green-300 transition-colors">Finish & Save Score</button>}
-              <button onClick={resetGame} className="text-gray-400 hover:text-white transition-colors">Reset Game</button>
+              <button onClick={resetGame} className="text-gray-400 hover:text-white transition-colors">Back to Start</button>
             </div>
           </div>
         )}
@@ -360,7 +439,17 @@ export default function TriviaGame({ onScoreSubmit, leaderboard }) {
                 </div>
                 {funFact && <div className="bg-purple-500/20 border border-purple-500/30 rounded-xl p-4 text-left animate-slideUp"><p className="text-sm text-purple-300">💡 <span className="font-semibold">Fun Fact:</span> {funFact}</p></div>}
                 {streak >= 3 && selectedAnswer === currentQuestion.a && <div className="text-orange-400 animate-pulse text-lg">🔥 {streak} in a row! You&apos;re on fire!</div>}
-                <button onClick={nextQuestion} className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold py-3 px-8 rounded-full transition-all transform hover:scale-105">Next Category →</button>
+                <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                  <button onClick={nextQuestion} className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold py-3 px-8 rounded-full transition-all transform hover:scale-105">
+                    {gameMode === 'random' ? 'Next Question 🎲' : 'Next Question →'}
+                  </button>
+                  {gameMode === 'category' && (
+                    <button onClick={changeCategory} className="bg-white/10 hover:bg-white/20 text-white font-bold py-3 px-8 rounded-full transition-all transform hover:scale-105">
+                      Change Category 🎯
+                    </button>
+                  )}
+                </div>
+                <button onClick={finishGame} className="text-gray-400 hover:text-white transition-colors text-sm">Finish & Save Score</button>
               </div>
             )}
           </div>
