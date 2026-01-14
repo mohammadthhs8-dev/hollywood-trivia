@@ -44,13 +44,26 @@ export async function POST(request) {
           role: 'user',
           content: `Generate 1 unique trivia question about ${categoryContext}.
 
+CRITICAL ACCURACY REQUIREMENTS:
+- You must be 100% certain of the correct answer before generating the question
+- Double-check that the question wording matches the answer (e.g., if the answer is a man, don't say "actress" or "woman")
+- Verify gender terms: use "actor" for men, "actress" for women, or use gender-neutral "performer" if unsure
+- All options must be plausible and from the same category (e.g., all actors, all movies, all years)
+- The wrong options must be clearly wrong, not arguably correct
+- If you're not 100% sure about a fact, choose a different question topic
+
 Requirements:
 - Question should be interesting and fun
 - Vary difficulty (some easy, some medium, some challenging)
-- Must be factually accurate
 - Cover a WIDE variety of movies, actors, directors from different decades (1950s to 2020s)
 - Include a visual hint keyword that represents the question (like "oscar_statue", "microphone", "movie_camera", "heart", "money_bag", "film_reel", "star", "popcorn", "trophy", "musical_note", "director_chair", "red_carpet", "clapperboard", "spotlight", "ticket")
 ${avoidanceText}
+
+Before outputting, verify:
+1. Is the answer factually correct?
+2. Does the question wording accurately describe the answer?
+3. Are all gender references correct?
+4. Are the wrong options clearly wrong?
 
 Return ONLY valid JSON in this exact format, no other text:
 {
